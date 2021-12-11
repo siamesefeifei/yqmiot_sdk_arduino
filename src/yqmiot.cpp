@@ -89,8 +89,10 @@ void YqmiotClient::_connect_retry() {
 void YqmiotClient::close() {
     if (this->_state == YQMIOT_STATE_CONNECTING) {
         this->_client.close();
+        this->_state = YQMIOT_STATE_CLOSED;
     } else if (this->_state == YQMIOT_STATE_CONNECTED) {
         this->_client.close();
+        this->_state = YQMIOT_STATE_CLOSED;
     }
 }
 
@@ -127,6 +129,7 @@ void YqmiotClient::loop() {
         this->_connect_timer = 0;
 
         YQMIOT_PRINTF("[YqmiotClient] connect to server ...\n");
+        // XXX 实现异步连接
         if (!this->_client.connect(this->_url)) {
             YQMIOT_PRINTF("[YqmiotClient] connect failed!\n");
             this->_connect_retry();
