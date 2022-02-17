@@ -149,6 +149,7 @@ YQMIOT_PRINTF("YqmiotClient::_on_data %s", data.c_str());
     int src = (int)p["s"];
     int id = (int)p["i"];
     int cmd = (int)p["c"];
+    int hdl = (int)p["h"];
     JSONVar val = p["v"];
 
     // XXX login_type == 1 时无法获取 nid
@@ -216,6 +217,28 @@ YQMIOT_PRINTF("YqmiotClient::_on_data %s", data.c_str());
 
     case YQMIOT_CMD_CLOSE:
         // 服务器强制断开
+        break;
+
+    case YQMIOT_CMD_WRITE:
+        YqmiotCharacteristic *chr;
+        for (int i = 0; i < _chars.length; ++i) {
+            if _chars[i].hdl == hdl {
+                chr = _chars[i];
+                break;
+            }
+        }
+        if (chr) {
+            if chr.flag & yqmiot_flag_auto_resp {
+                this->set_val(hdl, val);
+                this->reply(id, 0);
+            }
+            this->_on_write_callback(src, hdl, val);
+        } else {
+            if id ~= 0 {
+                this->reply(id, -1);
+            }
+        }
+        
         break;
 
     default:

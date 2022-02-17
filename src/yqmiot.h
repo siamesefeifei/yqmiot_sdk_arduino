@@ -41,16 +41,20 @@ begin 是设置参数，并调用 connect，
 
 using namespace websockets;
 
-#define YQMIOT_CMD_INVALID            0         // 无效命令 (invalid)
-#define YQMIOT_CMD_RESPONSE           1         // 回复 (response)
-#define YQMIOT_CMD_LOGIN              2         // 认证 (auth)
-#define YQMIOT_CMD_CLOSE              3         // 断开 (close)
-#define YQMIOT_CMD_PING               4         // ping
-#define YQMIOT_CMD_PROPS_REPORT       5         // 属性上报 (props report)
-#define YQMIOT_CMD_EVENT_REPORT       6         // 事件上报 (event report)
-#define YQMIOT_CMD_CALL               7         // 服务调用 (service call)
-#define YQMIOT_CMD_GET_CONFIG         8         // 读取配置
-#define YQMIOT_CMD_SET_CONFIG         9         // 设置配置
+#define YQMIOT_CMD_INVALID            0         // 无效命令
+#define YQMIOT_CMD_RESPONSE           1         // 回复
+#define YQMIOT_CMD_AUTH               2         // 认证
+#define YQMIOT_CMD_READ               10        // 读取参数
+#define YQMIOT_CMD_WRITE              11        // 写入参数
+#define YQMIOT_CMD_NOTIFY             12        // 通知其他设备
+// TODO 是否需要增加特征查询?
+// TODO 增加批量读取
+
+#define YQMIOT_TYPE_INVALID           0         // 无效类型
+#define YQMIOT_TYPE_PROP              1         // 属性
+#define YQMIOT_TYPE_CONFIG            2         // 配置
+#define YQMIOT_TYPE_EVENT             3         // 事件
+#define YQMIOT_TYPE_METHOD            4         // 方法
 
 #define YQMIOT_NID_IOTSRV            0x7ffffe00 // 物联网主服务
 #define YQMIOT_NID_NOTIFY            0x00000000 // Android IOS 通知推送服务
@@ -65,7 +69,7 @@ using namespace websockets;
 
 #define YQMIOT_PRINTF Serial.printf
 
-typedef std::function<void(int dst, int src, int id, int cmd, const JSONVar& val)> YqmiotClientCallback;
+typedef std::function<void(int dst, int src, int id, int cmd, int hdl, const JSONVar& val)> YqmiotClientCallback;
 
 class YqmiotClient {
 public:
@@ -105,34 +109,32 @@ public:
     // 属性上报
     void report_props(const JSONVar& val);
 
-    // 事件上报
-    void report_event(const String& name, JSONVar& val);
+    void write(int dst, int hdl, const JSONVar& val);
 
-    void report_event(const String& name);
+    void read(int dst, int hdl, const JSONVar& val);
 
     // 回复指定设备的调用
     void reply(int dst, int id, const JSONVar& val);
 
-    // 服务调用指令
-    void on_call(YqmiotClientCallback callback) { _on_call_callback = callback; }
+    // 读请求
+    void on_read(YqmiotClientCallback callback) { _on_call_callback = callback; }
 
-    // 其他设备上报事件
-    void on_event_report(YqmiotClientCallback callback) { _on_event_report_callback = callback; }
+    // 写请求
+    void on_write(YqmiotClientCallback callback) { _on_call_callback = callback; }
 
-    // 其他设备上报属性
-    void on_props_report(YqmiotClientCallback callback) { _on_props_report_callback = callback; }
+    // 其他设备通知 (事件，属性，变化)
+    void on_notify(YqmiotClientCallback callback) { _on_call_callback = callback; }
 
-    // 属性配置指令
-    void on_set_config(YqmiotClientCallback callback) { _on_set_config_callback = callback; }
+    // 调用其他设备回复
+    void on_response(YqmiotClientCallback callback) { _on_call_response_callback = callback; }
 
-    // 属性读取指令
-    void on_get_config(YqmiotClientCallback callback) { _on_get_config_callback = callback; }
+    void set_val(int hdl, const JSONVar& val) {
+        _vals[hdl] = val;
+    }
 
-    // 调用其他设备的回复
-    void on_call_response(YqmiotClientCallback callback) { _on_call_response_callback = callback; }
-
-    // 子网透传包
-    void on_subnode_packet(YqmiotClientCallback callback) { _on_subnode_packet_callback = callback; }
+    JSONVar get_val(int hdl) {
+        return _vals[hdl];
+    }
 
 private:
     WebsocketsClient _client;
@@ -140,19 +142,28 @@ private:
     long _connect_timer;
     int _retry_count;
 
-    YqmiotClientCallback _on_call_callback;
-    YqmiotClientCallback _on_event_report_callback;
-    YqmiotClientCallback _on_props_report_callback;
-    YqmiotClientCallback _on_set_config_callback;
-    YqmiotClientCallback _on_get_config_callback;
-    YqmiotClientCallback _on_call_response_callback;
-    YqmiotClientCallback _on_subnode_packet_callback;
+    YqmiotClientCallback _on_read_callback;
+    YqmiotClientCallback _on_write_callback;
+    YqmiotClientCallback _on_notify_callback;
 
     String _url;
     int _login_type;
     int _nid;
     String _token;
     int _pid;
+
+    JSONVar _vals;
+    YqmiotCharacteristic *_chars;
 };
+
+struct YqmiotCharacteristic
+{
+    int hdl;
+    int typ;
+    int flags;
+    char *dec;
+    JSONVar val;
+};
+
 
 extern YqmiotClient YQMIOT;
